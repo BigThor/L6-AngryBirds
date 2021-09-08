@@ -67,6 +67,7 @@ gSounds = {
     ['break5'] = love.audio.newSource('sounds/break5.wav', 'static'),
     ['bounce'] = love.audio.newSource('sounds/bounce.wav', 'static'),
     ['kill'] = love.audio.newSource('sounds/kill.wav', 'static'),
+    ['split-alien'] = love.audio.newSource('sounds/split_alien.wav', 'static'),
 
     ['music'] = love.audio.newSource('sounds/music.wav', 'static')
 }

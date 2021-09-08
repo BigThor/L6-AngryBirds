@@ -26,7 +26,9 @@ function AlienLaunchMarker:init(world)
     self.launched = false
 
     -- our alien we will eventually spawn
-    self.alien = nil
+    self.aliens = {}
+    self.hasBeenHit = false
+    self.hasSplit = false
 end
 
 function AlienLaunchMarker:update(dt)
@@ -45,15 +47,12 @@ function AlienLaunchMarker:update(dt)
         elseif love.mouse.wasReleased(1) and self.aiming then
             self.launched = true
 
-            -- spawn new alien in the world, passing in user data of player
-            self.alien = Alien(self.world, 'round', self.shiftedX, self.shiftedY, 'Player')
-
-            -- apply the difference between current X,Y and base X,Y as launch vector impulse
-            self.alien.body:setLinearVelocity((self.baseX - self.shiftedX) * 10, (self.baseY - self.shiftedY) * 10)
-
-            -- make the alien pretty bouncy
-            self.alien.fixture:setRestitution(0.4)
-            self.alien.body:setAngularDamping(1)
+            self:createAlien({
+                x = self.shiftedX,
+                y = self.shiftedY,
+                dx = (self.baseX - self.shiftedX) * 10,
+                dy = (self.baseY - self.shiftedY) * 10
+            })
 
             -- we're no longer aiming
             self.aiming = false
@@ -103,6 +102,80 @@ function AlienLaunchMarker:render()
         
         love.graphics.setColor(1, 1, 1, 1)
     else
-        self.alien:render()
+        for k,alien in pairs(self.aliens) do
+            alien:render()
+        end
     end
+end
+
+--[[
+    Params needed in this function are:
+        x, y, dx, dy
+]]
+function AlienLaunchMarker:createAlien(params)
+    -- spawn new alien in the world, passing in user data of player
+    local alien = Alien(self.world, 'round', params.x, params.y, 'Player')
+
+    -- apply the difference between current X,Y and base X,Y as launch vector impulse
+    alien.body:setLinearVelocity(params.dx, params.dy)
+
+    -- make the alien pretty bouncy
+    alien.fixture:setRestitution(0.4)
+    alien.body:setAngularDamping(1)
+
+    table.insert(self.aliens, alien)
+end
+
+function AlienLaunchMarker:areAliensMoving()
+    for k,alien in pairs(self.aliens) do
+        local xPos, yPos = alien.body:getPosition()
+        local xVel, yVel = alien.body:getLinearVelocity()
+        
+        -- if alien is out of screen or it's almost done rolling, respawn
+        if xPos > 0 and yPos < VIRTUAL_WIDTH and (math.abs(xVel) + math.abs(yVel) > 1.5) then
+            return true
+        end
+    end
+    return false
+end
+
+function AlienLaunchMarker:splitAlien()
+    if self.aliens[1] == nil then
+        return
+    end
+
+    local xPos, yPos = self.aliens[1].body:getPosition()
+    local xVel, yVel = self.aliens[1].body:getLinearVelocity()
+    local angle = 20
+
+    local newAlien1Dx, newAlien1Dxy = self:getRotatedSpeed(xVel, yVel, angle)
+    
+    self:createAlien({
+        x = xPos,
+        y = yPos,
+        dx = newAlien1Dx,
+        dy = newAlien1Dxy
+    })
+
+    local newAlien2Dx, newAlien2Dxy = self:getRotatedSpeed(xVel, yVel, -angle)
+    
+    self:createAlien({
+        x = xPos,
+        y = yPos,
+        dx = newAlien2Dx,
+        dy = newAlien2Dxy
+    })
+
+    self.hasSplit = true
+    gSounds['split-alien']:play()
+end
+
+function AlienLaunchMarker:getRotatedSpeed(dx, dy, angle)
+    local sin = math.sin(angle * DEGREES_TO_RADIANS)
+    local cos = math.cos(angle * DEGREES_TO_RADIANS)
+
+    local newDx = dx * cos - dy * sin
+    local newDy = dx * sin + dy * cos
+
+    return newDx, newDy
 end

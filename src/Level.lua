@@ -78,6 +78,11 @@ function Level:init()
             gSounds['bounce']:stop()
             gSounds['bounce']:play()
         end
+
+        -- player collided with something
+        if types['Player'] then
+            self.launchMarker.hasBeenHit = true
+        end
     end
 
     -- the remaining three functions here are sample definitions, but we are not
@@ -102,7 +107,7 @@ function Level:init()
     self.launchMarker = AlienLaunchMarker(self.world)
 
     -- aliens in our scene
-    self.aliens = {}
+    self.enemyAliens = {}
 
     -- obstacles guarding aliens that we can destroy
     self.obstacles = {}
@@ -111,7 +116,7 @@ function Level:init()
     self.edgeShape = love.physics.newEdgeShape(0, 0, VIRTUAL_WIDTH * 3, 0)
 
     -- spawn an alien to try and destroy
-    table.insert(self.aliens, Alien(self.world, 'square', VIRTUAL_WIDTH - 80, VIRTUAL_HEIGHT - TILE_SIZE - ALIEN_SIZE / 2, 'Alien'))
+    table.insert(self.enemyAliens, Alien(self.world, 'square', VIRTUAL_WIDTH - 80, VIRTUAL_HEIGHT - TILE_SIZE - ALIEN_SIZE / 2, 'Alien'))
 
     -- spawn a few obstacles
     table.insert(self.obstacles, Obstacle(self.world, 'vertical',
@@ -162,9 +167,9 @@ function Level:update(dt)
     end
 
     -- remove all destroyed aliens from level
-    for i = #self.aliens, 1, -1 do
-        if self.aliens[i].body:isDestroyed() then
-            table.remove(self.aliens, i)
+    for i = #self.enemyAliens, 1, -1 do
+        if self.enemyAliens[i].body:isDestroyed() then
+            table.remove(self.enemyAliens, i)
             gSounds['kill']:stop()
             gSounds['kill']:play()
         end
@@ -172,20 +177,22 @@ function Level:update(dt)
 
     -- replace launch marker if original alien stopped moving
     if self.launchMarker.launched then
-        local xPos, yPos = self.launchMarker.alien.body:getPosition()
-        local xVel, yVel = self.launchMarker.alien.body:getLinearVelocity()
+        if love.keyboard.isDown('space') and not self.launchMarker.hasBeenHit and not self.launchMarker.hasSplit then
+            self.launchMarker:splitAlien()
+        end
         
-        -- if we fired our alien to the left or it's almost done rolling, respawn
-        if xPos < 0 or (math.abs(xVel) + math.abs(yVel) < 1.5) then
-            self.launchMarker.alien.body:destroy()
+        -- if alien is out of screen or it's almost done rolling, respawn
+        if not (self.launchMarker:areAliensMoving()) then
+            self.launchMarker.aliens = {}
             self.launchMarker = AlienLaunchMarker(self.world)
 
             -- re-initialize level if we have no more aliens
-            if #self.aliens == 0 then
+            if #self.enemyAliens == 0 then
                 gStateMachine:change('start')
             end
         end
     end
+
 end
 
 function Level:render()
@@ -197,7 +204,7 @@ function Level:render()
 
     self.launchMarker:render()
 
-    for k, alien in pairs(self.aliens) do
+    for k, alien in pairs(self.enemyAliens) do
         alien:render()
     end
 
@@ -214,8 +221,8 @@ function Level:render()
         love.graphics.setColor(1, 1, 1, 1)
     end
 
-    -- render victory text if all aliens are dead
-    if #self.aliens == 0 then
+    -- render victory text if all enemy aliens are dead
+    if #self.enemyAliens == 0 then
         love.graphics.setFont(gFonts['huge'])
         love.graphics.setColor(0, 0, 0, 1)
         love.graphics.printf('VICTORY', 0, VIRTUAL_HEIGHT / 2 - 32, VIRTUAL_WIDTH, 'center')
